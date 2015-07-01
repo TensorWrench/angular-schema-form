@@ -215,15 +215,17 @@ angular.module('schemaForm').provider('schemaForm',
 
       var arrPath = options.path.slice();
       arrPath.push('');
-
-      f.items = [defaultFormDefinition(name, schema.items, {
+      f.items=[];
+      var def = defaultFormDefinition(name, schema.items, {
         path: arrPath,
         required: required || false,
         lookup: options.lookup,
         ignore: options.ignore,
         global: options.global
-      })];
-
+      });
+      if (def) {
+        f.items.push(def);
+      }
       return f;
     }
 

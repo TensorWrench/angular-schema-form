@@ -537,17 +537,31 @@ describe('schemaForm', function() {
         var merged = schemaForm.merge(schema, [{key: 'sub', readonly: true}]);
 
         //sub
+        
         merged[0].should.have.property('readonly');
         merged[0].readonly.should.eq(true);
+      });
+    });
+    it('should gracefully handle a $ref in items', function() {
+      inject(function(schemaForm) {
+        var schema = {
+            "type" : "object",
+            "properties": {
+                "testArrayRef": {
+                    "type" : "array",
+                    "items": {"$ref" : "hal-schema.json#/definitions/link" }
+                }
+            }
+        };
 
-        //array
-        merged[0].items[0].should.have.property('readonly');
-        merged[0].items[0].readonly.should.eq(true);
+        var merged;
+        chai.expect(function() {
+            merged=schemaForm.merge(schema,['*'] );
+        }).to.not.throw();
 
-        //array items
-        merged[0].items[0].items[0].should.have.property('readonly');
-        merged[0].items[0].items[0].readonly.should.eq(true);
-
+        // Not sure if the key should be present, but item empty.
+        merged[0].key.should.have.members(['testArrayRef']);
+        merged[0].items.should.have.length(0);
       });
     });
   });
