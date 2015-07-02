@@ -5,15 +5,16 @@ FIXME: real documentation
 
 angular.module('schemaForm')
        .directive('sfSchema',
-['$compile', 'schemaForm', 'schemaFormDecorators', 'sfSelect', 'sfPath', 'sfBuilder',
-  function($compile,  schemaForm,  schemaFormDecorators, sfSelect, sfPath, sfBuilder) {
+['$compile', 'schemaForm', 'schemaFormDecorators', 'sfSelect', 'sfPath', 'sfBuilder','refResolver',
+  function($compile,  schemaForm,  schemaFormDecorators, sfSelect, sfPath, sfBuilder,refResolver) {
 
     return {
       scope: {
         schema: '=sfSchema',
         initialForm: '=sfForm',
         model: '=sfModel',
-        options: '=sfOptions'
+        options: '=sfOptions',
+        uriTranslator: '=sfUriTranslator'
       },
       controller: ['$scope', function($scope) {
         this.evalInParentScope = function(expr, locals) {
@@ -107,7 +108,13 @@ angular.module('schemaForm')
 
           scope.$emit('sf-render-finished', element);
         };
-
+       
+        var resolveAndRender=function(schema,form) {
+          tv4.addSchema(schema);
+          refResolver({uriTranslator: scope.uriTranslator}).then(function() {
+            render(schema,form);
+          });
+        };
         //Since we are dependant on up to three
         //attributes we'll do a common watch
         scope.$watch(function() {
@@ -122,7 +129,7 @@ angular.module('schemaForm')
             lastDigest.schema = schema;
             lastDigest.form = form;
 
-            render(schema, form);
+            resolveAndRender(schema, form);
           }
         });
 
@@ -132,7 +139,7 @@ angular.module('schemaForm')
           var schema = scope.schema;
           var form   = scope.initialForm || ['*'];
           if (schema) {
-            render(schema, form);
+            resolveAndRender(schema, form);
           }
         });
 

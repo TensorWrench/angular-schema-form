@@ -883,6 +883,38 @@ angular.module('schemaForm').provider('sfErrorMessage', function() {
  * This service is not that useful outside of schema form directive
  * but makes the code more testable.
  */
+angular.module('schemaForm').factory('refResolver',
+['$http','$q', function($http,$q) {
+    var resolveMissingUris=function(config) {
+      config = config || {};
+      config.uriTranslator=config.uriTranslator || function(u) { return u;};
+      var missingUris=tv4.getMissingUris();
+      console.log("Missing uris: ",missingUris);
+      if(!missingUris.length) {
+        return $q.when();
+      }
+      return $q.all(missingUris.map(function(uri) {
+        var modified=config.uriTranslator(uri);
+//        console.log("Translating ",uri," into ",modified);
+        return $http.get(modified).then(function(refSchema) {
+          tv4.addSchema(refSchema.data.id,refSchema.data);
+        }).catch(function(err) {
+          tv4.addSchema(uri,{
+            "title": "Unknown reference: " + uri,
+            "description": err.message,
+            "type": "string",
+            "readOnly": true
+          });
+        });
+      })).then(resolveMissingUris);
+    };
+    return resolveMissingUris;
+}]);
+/**
+ * Schema form service.
+ * This service is not that useful outside of schema form directive
+ * but makes the code more testable.
+ */
 angular.module('schemaForm').provider('schemaForm',
 ['sfPathProvider', function(sfPathProvider) {
   var stripNullType = function(type) {
@@ -922,8 +954,13 @@ angular.module('schemaForm').provider('schemaForm',
     }
     return titleMap;
   };
-
+  
   var defaultFormDefinition = function(name, schema, options) {
+    if(schema.$ref){//&& options.global.refHandler) {
+      var ref=schema.$ref;
+      schema=tv4.getSchema(schema.$ref) || options.global.refHandler(ref);
+      console.log("DefaultFormDefinition found $ref=",ref," that resolved to ",schema);
+    }
     var rules = defaults[stripNullType(schema.type)];
     if (rules) {
       var def;
@@ -1095,7 +1132,6 @@ angular.module('schemaForm').provider('schemaForm',
 
       var arrPath = options.path.slice();
       arrPath.push('');
-      f.items=[];
       var def = defaultFormDefinition(name, schema.items, {
         path: arrPath,
         required: required || false,
@@ -1104,7 +1140,7 @@ angular.module('schemaForm').provider('schemaForm',
         global: options.global
       });
       if (def) {
-        f.items.push(def);
+        f.items=[def];
       }
       return f;
     }
@@ -1189,7 +1225,13 @@ angular.module('schemaForm').provider('schemaForm',
 
       // Get readonly from root object
       readonly = readonly || schema.readonly || schema.readOnly;
-
+      options.refHandler=function(ref) {
+        return {
+          "title": "Unknown reference: " + ref,
+          "type": "string",
+          "readOnly": true
+        };
+      };
       var stdForm = service.defaults(schema, ignore, options);
 
       //simple case, we have a "*", just put the stdForm there
@@ -2100,15 +2142,16 @@ FIXME: real documentation
 
 angular.module('schemaForm')
        .directive('sfSchema',
-['$compile', 'schemaForm', 'schemaFormDecorators', 'sfSelect', 'sfPath', 'sfBuilder',
-  function($compile,  schemaForm,  schemaFormDecorators, sfSelect, sfPath, sfBuilder) {
+['$compile', 'schemaForm', 'schemaFormDecorators', 'sfSelect', 'sfPath', 'sfBuilder','refResolver',
+  function($compile,  schemaForm,  schemaFormDecorators, sfSelect, sfPath, sfBuilder,refResolver) {
 
     return {
       scope: {
         schema: '=sfSchema',
         initialForm: '=sfForm',
         model: '=sfModel',
-        options: '=sfOptions'
+        options: '=sfOptions',
+        uriTranslator: '=sfUriTranslator'
       },
       controller: ['$scope', function($scope) {
         this.evalInParentScope = function(expr, locals) {
@@ -2202,7 +2245,13 @@ angular.module('schemaForm')
 
           scope.$emit('sf-render-finished', element);
         };
-
+       
+        var resolveAndRender=function(schema,form) {
+          tv4.addSchema(schema);
+          refResolver({uriTranslator: scope.uriTranslator}).then(function() {
+            render(schema,form);
+          });
+        };
         //Since we are dependant on up to three
         //attributes we'll do a common watch
         scope.$watch(function() {
@@ -2217,7 +2266,7 @@ angular.module('schemaForm')
             lastDigest.schema = schema;
             lastDigest.form = form;
 
-            render(schema, form);
+            resolveAndRender(schema, form);
           }
         });
 
@@ -2227,7 +2276,7 @@ angular.module('schemaForm')
           var schema = scope.schema;
           var form   = scope.initialForm || ['*'];
           if (schema) {
-            render(schema, form);
+            resolveAndRender(schema, form);
           }
         });
 

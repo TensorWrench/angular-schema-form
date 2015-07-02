@@ -42,8 +42,13 @@ angular.module('schemaForm').provider('schemaForm',
     }
     return titleMap;
   };
-
+  
   var defaultFormDefinition = function(name, schema, options) {
+    if(schema.$ref){//&& options.global.refHandler) {
+      var ref=schema.$ref;
+      schema=tv4.getSchema(schema.$ref) || options.global.refHandler(ref);
+      console.log("DefaultFormDefinition found $ref=",ref," that resolved to ",schema);
+    }
     var rules = defaults[stripNullType(schema.type)];
     if (rules) {
       var def;
@@ -215,7 +220,6 @@ angular.module('schemaForm').provider('schemaForm',
 
       var arrPath = options.path.slice();
       arrPath.push('');
-      f.items=[];
       var def = defaultFormDefinition(name, schema.items, {
         path: arrPath,
         required: required || false,
@@ -224,7 +228,7 @@ angular.module('schemaForm').provider('schemaForm',
         global: options.global
       });
       if (def) {
-        f.items.push(def);
+        f.items=[def];
       }
       return f;
     }
@@ -309,7 +313,13 @@ angular.module('schemaForm').provider('schemaForm',
 
       // Get readonly from root object
       readonly = readonly || schema.readonly || schema.readOnly;
-
+      options.refHandler=function(ref) {
+        return {
+          "title": "Unknown reference: " + ref,
+          "type": "string",
+          "readOnly": true
+        };
+      };
       var stdForm = service.defaults(schema, ignore, options);
 
       //simple case, we have a "*", just put the stdForm there

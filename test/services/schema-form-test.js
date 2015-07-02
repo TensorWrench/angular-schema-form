@@ -564,5 +564,55 @@ describe('schemaForm', function() {
         merged[0].items.should.have.length(0);
       });
     });
+    it('should call the refHandler for $ref in a property', function() {
+      inject(function(schemaForm) {
+        var schema = {
+            "type" : "object",
+            "properties": {
+                "testRef": {"$ref" : "external-schema.json#/definitions/someType" },
+                "standardProperty" : { "type": "string" }
+            }
+        };
+
+        var merged=schemaForm.merge(schema,['*'],undefined,{
+          refHandler: function(ref) {
+              console.log("refHandler called with ",ref);
+              return {
+                "type": "string"
+              };
+            }
+        });
+        // Not sure if the key should be present, but item empty.
+        merged[0].key.should.have.members(['testRef']);
+        merged[0].type.should.equal("text");
+      });
+    });
+    it('should call the refHandler for $ref in items', function() {
+      inject(function(schemaForm) {
+        var schema = {
+            "type" : "object",
+            "properties": {
+                "testArrayRef": {
+                    "type" : "array",
+                    "items": {"$ref" : "hal-schema.json#/definitions/link" }
+                }
+            }
+        };
+
+        var merged=schemaForm.merge(schema,['*'],undefined,{
+          refHandler: function(ref) {
+              console.log("refHandler called with ",ref);
+              return {
+                "type": "string"
+              };
+            }
+        });
+        console.log('Merged=',JSON.stringify(merged,null,2));
+
+        // Not sure if the key should be present, but item empty.
+        merged[0].key.should.have.members(['testArrayRef']);
+        merged[0].items[0].type.should.equal("text");
+      });
+    });
   });
 });
